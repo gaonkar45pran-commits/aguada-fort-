@@ -1,0 +1,1876 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fort Aguada (1612) — Interactive 3D Digital Heritage Museum, Goa</title>
+
+  <!-- Google Fonts: Cinzel & Playfair Display for Heritage Typography, Plus Jakarta Sans for UI -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800&family=Playfair+Display:ital,wght@0,500;0,700;1,500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Three.js r128 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            laterite: {
+              DEFAULT: '#9E3B24',
+              dark: '#6E2616',
+              light: '#C85A3F'
+            },
+            brass: {
+              DEFAULT: '#C8963E',
+              light: '#E3B867',
+              dark: '#966D25'
+            },
+            arabian: {
+              DEFAULT: '#0F1E26',
+              deep: '#081217',
+              slate: '#192E3A'
+            },
+            parchment: {
+              DEFAULT: '#F7F3EB',
+              warm: '#EFE8D8',
+              border: '#DDD3BE'
+            }
+          },
+          fontFamily: {
+            display: ['Cinzel', 'serif'],
+            serif: ['Playfair Display', 'serif'],
+            sans: ['Plus Jakarta Sans', 'sans-serif']
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    body {
+      background-color: #F7F3EB;
+      color: #1A1816;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      overflow-x: hidden;
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #EFE8D8;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #9E3B24;
+      border-radius: 9999px;
+    }
+
+    /* 3D Canvas Styling */
+    #fort-canvas-wrapper {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      min-height: 520px;
+      touch-action: none;
+    }
+    #fort-canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      cursor: grab;
+    }
+    #fort-canvas:active {
+      cursor: grabbing;
+    }
+
+    /* 3D Hotspot Markers */
+    .hotspot-pin {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      z-index: 20;
+      transition: transform 0.25s ease, opacity 0.25s ease;
+    }
+    .hotspot-pin:hover {
+      transform: translate(-50%, -50%) scale(1.12);
+      z-index: 30;
+    }
+    @keyframes pulseRing {
+      0% { transform: scale(0.95); opacity: 0.9; }
+      70% { transform: scale(1.65); opacity: 0; }
+      100% { transform: scale(1.65); opacity: 0; }
+    }
+    .pulse-ring {
+      animation: pulseRing 2.2s cubic-bezier(0.24, 0, 0.38, 1) infinite;
+    }
+
+    /* Talking Buddy Avatar Animations */
+    @keyframes floatBuddy {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-4px); }
+    }
+    .buddy-float {
+      animation: floatBuddy 3.6s ease-in-out infinite;
+    }
+
+    @keyframes waveBar {
+      0%, 100% { height: 6px; }
+      50% { height: 22px; }
+    }
+    .speaking-active .wave-bar:nth-child(1) { animation: waveBar 0.55s ease-in-out infinite 0.0s; }
+    .speaking-active .wave-bar:nth-child(2) { animation: waveBar 0.45s ease-in-out infinite 0.1s; }
+    .speaking-active .wave-bar:nth-child(3) { animation: waveBar 0.60s ease-in-out infinite 0.2s; }
+    .speaking-active .wave-bar:nth-child(4) { animation: waveBar 0.40s ease-in-out infinite 0.15s; }
+    .speaking-active .wave-bar:nth-child(5) { animation: waveBar 0.52s ease-in-out infinite 0.05s; }
+
+    /* Before/After Comparison Slider */
+    .compare-container {
+      position: relative;
+      overflow: hidden;
+      user-select: none;
+    }
+    .compare-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      overflow: hidden;
+    }
+    .compare-handle {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background: #C8963E;
+      box-shadow: 0 0 12px rgba(0,0,0,0.6);
+      cursor: ew-resize;
+      z-index: 15;
+    }
+
+    /* Subtle Heritage Paper Texture Overlay */
+    .heritage-grain {
+      background-image: radial-gradient(rgba(158, 59, 36, 0.05) 1px, transparent 0);
+      background-size: 20px 20px;
+    }
+  </style>
+</head>
+<body class="antialiased selection:bg-laterite selection:text-white">
+
+  <!-- Top Maritime Heritage Navigation -->
+  <header class="sticky top-0 z-50 bg-arabian/95 backdrop-blur-md border-b border-brass/30 text-parchment shadow-lg">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16 sm:h-20">
+        <!-- Brand Crest -->
+        <a href="#top" class="flex items-center gap-3 group">
+          <div class="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-laterite to-laterite-dark border border-brass/60 flex items-center justify-center shadow-inner">
+            <!-- Lighthouse & Bastion Crest SVG -->
+            <svg class="w-6 h-6 text-brass-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M9 21h6M10 21l1-11h2l1 11M9.5 10h5M10.5 7h3l-.5-3h-2l-.5 3z" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M4 7l3 1M20 7l-3 1M12 2v1" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div>
+            <span class="font-display text-base sm:text-lg font-bold tracking-wider text-parchment block leading-none">FORT AGUADA</span>
+            <span class="text-[11px] uppercase tracking-[0.2em] text-brass-light font-medium">Sinquerim • Goa • Est. 1612</span>
+          </div>
+        </a>
+
+        <!-- Desktop Navigation Links -->
+        <nav class="hidden md:flex items-center gap-7 text-sm font-medium text-parchment/85">
+          <a href="#studio-3d" class="hover:text-brass-light transition-colors">3D Reconstruction</a>
+          <a href="#evolution-archive" class="hover:text-brass-light transition-colors">Oldest to Newest</a>
+          <a href="#architecture" class="hover:text-brass-light transition-colors">Engineering</a>
+          <a href="#chronicle" class="hover:text-brass-light transition-colors">1609–Present</a>
+          <a href="#folklore" class="hover:text-brass-light transition-colors">Legends & Jail</a>
+        </nav>
+
+        <!-- Summon AI Talking Buddy CTA -->
+        <div class="flex items-center gap-2 sm:gap-3">
+          <button onclick="focusBuddy()" class="inline-flex items-center gap-2 px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-gradient-to-r from-brass to-brass-dark text-arabian-deep font-semibold text-xs sm:text-sm shadow-md hover:brightness-110 transition-all cursor-pointer">
+            <span class="w-2 h-2 rounded-full bg-emerald-900 animate-ping"></span>
+            <span>Ask Capitão Vasco</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Banner -->
+  <section id="top" class="relative bg-arabian-deep text-parchment overflow-hidden border-b border-brass/30">
+    <!-- Background Aerial Photo with Atmospheric Gradient -->
+    <div class="absolute inset-0 opacity-35">
+      <img src="1.jpg" alt="Aerial view of Fort Aguada Circular Sea Bastion and Causeway at Sinquerim Beach" class="w-full h-full object-cover object-center" />
+    </div>
+    <div class="absolute inset-0 bg-gradient-to-r from-arabian-deep via-arabian-deep/90 to-arabian-deep/65"></div>
+
+    <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 lg:py-20">
+      <div class="max-w-3xl">
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-laterite/30 border border-brass/40 text-brass-light text-xs font-semibold tracking-wider uppercase mb-5">
+          <span>ASI Protected Monument • 15°29′32″N 73°46′25″E</span>
+        </div>
+        <h1 class="font-display text-3xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-parchment leading-[1.12]">
+          The Crown Bastion of the <span class="text-brass-light">Arabian Sea</span>
+        </h1>
+        <p class="mt-5 text-base sm:text-lg text-parchment/85 leading-relaxed max-w-2xl">
+          Constructed between <strong>1609 and 1612</strong> where the Mandovi River meets the Arabian Sea, Fort Aguada guarded Portuguese Goa for three centuries and served as the vital freshwater replenishment harbor for ships sailing between Lisbon and the Indies.
+        </p>
+
+        <!-- Key Historical Metrics -->
+        <div class="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+          <div class="p-3.5 rounded-xl bg-arabian/80 border border-brass/25 backdrop-blur-sm">
+            <div class="font-display text-xl sm:text-2xl font-bold text-brass-light">1612</div>
+            <div class="text-xs text-parchment/75 mt-0.5">Completed under Viceroy de Távora</div>
+          </div>
+          <div class="p-3.5 rounded-xl bg-arabian/80 border border-brass/25 backdrop-blur-sm">
+            <div class="font-display text-xl sm:text-2xl font-bold text-brass-light">2.38M Gal</div>
+            <div class="text-xs text-parchment/75 mt-0.5">Subterranean Vaulted Cistern</div>
+          </div>
+          <div class="p-3.5 rounded-xl bg-arabian/80 border border-brass/25 backdrop-blur-sm">
+            <div class="font-display text-xl sm:text-2xl font-bold text-brass-light">1864</div>
+            <div class="text-xs text-parchment/75 mt-0.5">4-Storey Masonry Lighthouse</div>
+          </div>
+          <div class="p-3.5 rounded-xl bg-arabian/80 border border-brass/25 backdrop-blur-sm">
+            <div class="font-display text-xl sm:text-2xl font-bold text-brass-light">79 Guns</div>
+            <div class="text-xs text-parchment/75 mt-0.5">Coastal & Estuary Artillery</div>
+          </div>
+        </div>
+
+        <div class="mt-8 flex flex-wrap items-center gap-4">
+          <a href="#studio-3d" class="px-6 py-3.5 rounded-xl bg-laterite hover:bg-laterite-light text-white font-semibold text-sm shadow-lg transition-all flex items-center gap-2">
+            <span>Explore Interactive 3D Fort</span>
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+          </a>
+          <a href="#evolution-archive" class="px-6 py-3.5 rounded-xl bg-parchment/10 hover:bg-parchment/20 border border-parchment/25 text-parchment font-semibold text-sm transition-all">
+            View 1800s–Present Archive
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MAIN INTERACTIVE WORKSPACE: 3D RECONSTRUCTION + AI TALKING BUDDY -->
+  <section id="studio-3d" class="py-10 sm:py-14 px-4 sm:px-6 lg:px-8 max-w-[1440px] mx-auto">
+    <!-- Split Grid: 3D Studio (Left/Top 8 cols) + AI Talking Buddy (Right/Bottom 4 cols) -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+
+      <!-- 3D VIEWPORT CARD -->
+      <div class="lg:col-span-8 bg-arabian-deep rounded-2xl border border-brass/35 shadow-2xl overflow-hidden flex flex-col">
+        <!-- 3D Top Toolbar -->
+        <div class="px-4 py-3 bg-arabian border-b border-brass/25 flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div class="flex flex-wrap items-center gap-1.5">
+            <span class="text-parchment/60 font-semibold uppercase tracking-wider mr-1 hidden sm:inline">Camera:</span>
+            <button onclick="setCameraPreset('overview')" id="btn-cam-overview" class="cam-btn px-3 py-1.5 rounded-lg bg-brass text-arabian-deep font-semibold transition-all cursor-pointer">Aerial Overview</button>
+            <button onclick="setCameraPreset('bastion')" id="btn-cam-bastion" class="cam-btn px-3 py-1.5 rounded-lg bg-arabian-slate text-parchment hover:bg-laterite/60 transition-all cursor-pointer">Circular Sea Bastion</button>
+            <button onclick="setCameraPreset('pier')" id="btn-cam-pier" class="cam-btn px-3 py-1.5 rounded-lg bg-arabian-slate text-parchment hover:bg-laterite/60 transition-all cursor-pointer">Causeway & Twin Coves</button>
+            <button onclick="setCameraPreset('terraces')" id="btn-cam-terraces" class="cam-btn px-3 py-1.5 rounded-lg bg-arabian-slate text-parchment hover:bg-laterite/60 transition-all cursor-pointer">Coastal Terraces & Pavilion</button>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <!-- Sun / Golden Hour Toggle -->
+            <button onclick="toggleLightingMode()" id="btn-lighting" class="px-3 py-1.5 rounded-lg bg-arabian-slate border border-brass/30 text-brass-light hover:bg-brass/20 font-medium transition-all flex items-center gap-1.5 cursor-pointer" title="Switch between Afternoon Sun and Sunset Golden Hour">
+              <span id="lighting-icon">☀️</span>
+              <span id="lighting-label">Golden Hour</span>
+            </button>
+            <!-- Reference Photo Overlay Toggle -->
+            <button onclick="toggleBlueprintOverlay()" id="btn-blueprint" class="px-3 py-1.5 rounded-lg bg-arabian-slate border border-brass/30 text-parchment hover:bg-brass/20 font-medium transition-all cursor-pointer">
+              Compare Ref Photo
+            </button>
+          </div>
+        </div>
+
+        <!-- 3D Canvas & Overlays -->
+        <div id="fort-canvas-wrapper" class="flex-1 min-h-[480px] sm:min-h-[580px] relative select-none">
+          <canvas id="fort-canvas"></canvas>
+
+          <!-- Projected 3D Interactive Hotspots Layer -->
+          <div id="hotspots-layer" class="absolute inset-0 pointer-events-none overflow-hidden"></div>
+
+          <!-- Selected Hotspot Info Card (Bottom-Left inside 3D Viewport) -->
+          <div id="hotspot-card" class="absolute bottom-4 left-4 right-4 sm:right-auto sm:w-96 bg-arabian/95 backdrop-blur-md border border-brass/45 rounded-xl p-4 text-parchment shadow-2xl transition-all duration-300 z-20">
+            <div class="flex items-start justify-between gap-2">
+              <div>
+                <span id="hs-tag" class="text-[10px] font-bold uppercase tracking-widest text-brass-light">1612 Maritime Defense</span>
+                <h3 id="hs-title" class="font-display text-base sm:text-lg font-bold text-white mt-0.5">Circular Sea Bastion</h3>
+              </div>
+              <button onclick="askBuddyAboutCurrentHotspot()" class="shrink-0 px-2.5 py-1 rounded-lg bg-laterite hover:bg-laterite-light text-white text-[11px] font-semibold transition-colors cursor-pointer">
+                Ask Vasco →
+              </button>
+            </div>
+            <p id="hs-desc" class="text-xs text-parchment/85 leading-relaxed mt-2">
+              Extending directly into the surf of Sinquerim Beach, this large cylindrical dark-laterite artillery bastion features a flat sandy top deck, recessed stone parapet walls, and crenellated gun embrasures overlooking the anchorage.
+            </p>
+          </div>
+
+          <!-- Reference Photo Comparison Picture-in-Picture Overlay (Strictly 1.jpg) -->
+          <div id="blueprint-pip" class="hidden absolute top-4 right-4 w-64 sm:w-80 bg-arabian-deep/95 border-2 border-brass rounded-xl overflow-hidden shadow-2xl z-30">
+            <div class="px-3 py-1.5 bg-brass text-arabian-deep flex items-center justify-between text-xs font-bold">
+              <span>Reference Image (1.jpg)</span>
+              <button onclick="toggleBlueprintOverlay()" class="hover:opacity-75 cursor-pointer">✕</button>
+            </div>
+            <img src="1.jpg" alt="Reference Aerial View of Fort Aguada Circular Bastion and Sinquerim Cove" class="w-full h-40 object-cover" />
+            <div class="p-2.5 text-[11px] text-parchment/85 leading-snug">
+              3D scene reconstructed directly from <code>1.jpg</code>: circular bastion, elevated causeway pier, twin golden beaches, red laterite seawall promenade, turquoise pool, and palm-lined terraced pavilion.
+            </div>
+          </div>
+
+          <!-- Navigation Hint -->
+          <div class="absolute top-3 left-3 px-2.5 py-1 rounded-lg bg-arabian-deep/75 backdrop-blur-sm border border-white/10 text-[11px] text-parchment/75 pointer-events-none">
+            Drag to orbit • Scroll to zoom • Click glowing pins to inspect
+          </div>
+        </div>
+      </div>
+
+      <!-- AI TALKING BUDDY CARD: "CAPITÃO VASCO" -->
+      <div id="buddy-panel" class="lg:col-span-4 bg-white rounded-2xl border border-parchment-border shadow-xl flex flex-col overflow-hidden">
+        <!-- Buddy Header with Animated Heritage Portrait -->
+        <div class="bg-gradient-to-br from-arabian to-arabian-slate p-4 sm:p-5 text-parchment border-b border-brass/30">
+          <div class="flex items-center gap-3.5">
+            <!-- Animated SVG Avatar of Capitão Vasco (17th-Century Goan Maritime Cartographer & Guardian) -->
+            <div id="buddy-avatar-box" class="relative w-16 h-16 rounded-2xl bg-gradient-to-b from-brass/30 to-laterite/40 border-2 border-brass flex items-center justify-center shrink-0 buddy-float shadow-lg">
+              <svg class="w-13 h-13" viewBox="0 0 80 80" fill="none">
+                <!-- Mariner Hat -->
+                <path d="M14 28C22 14 58 14 66 28C54 24 26 24 14 28Z" fill="#0F1E26" stroke="#C8963E" stroke-width="2"/>
+                <path d="M24 22C28 12 52 12 56 22" fill="#9E3B24"/>
+                <!-- Face -->
+                <circle cx="40" cy="42" r="16" fill="#E8B98A"/>
+                <!-- Eyes -->
+                <circle cx="34" cy="39" r="2" fill="#1A1816"/>
+                <circle cx="46" cy="39" r="2" fill="#1A1816"/>
+                <!-- Mustache & Beard -->
+                <path d="M31 47C35 44 45 44 49 47C46 50 34 50 31 47Z" fill="#4A2E1B"/>
+                <path d="M30 49C32 58 48 58 50 49" stroke="#4A2E1B" stroke-width="3" stroke-linecap="round"/>
+                <!-- Animated Mouth -->
+                <ellipse id="buddy-mouth" cx="40" cy="48.5" rx="3.5" ry="1.2" fill="#7A1C1C"/>
+                <!-- Coat Collar -->
+                <path d="M22 68C25 58 55 58 58 68" fill="#9E3B24" stroke="#C8963E" stroke-width="2"/>
+              </svg>
+              <!-- Live Status Dot -->
+              <span id="buddy-status-dot" class="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-arabian" title="Ready to talk"></span>
+            </div>
+
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between gap-2">
+                <h3 class="font-display text-lg font-bold text-white truncate">Capitão Vasco</h3>
+                <!-- Audio Mute/Unmute Toggle -->
+                <button onclick="toggleVoiceOutput()" id="btn-tts-toggle" class="px-2.5 py-1 rounded-lg bg-parchment/15 hover:bg-parchment/25 text-brass-light text-xs font-semibold flex items-center gap-1 cursor-pointer" title="Toggle Spoken Voice">
+                  <span id="tts-icon">🔊</span>
+                  <span id="tts-label">Voice On</span>
+                </button>
+              </div>
+              <p class="text-xs text-brass-light font-medium">AI Guardian & Historian of Fort Aguada</p>
+              <!-- Audio Waveform Visualizer -->
+              <div id="voice-waveform" class="mt-2 flex items-center gap-1 h-5">
+                <span class="wave-bar w-1 h-1.5 bg-brass-light rounded-full transition-all"></span>
+                <span class="wave-bar w-1 h-1.5 bg-brass-light rounded-full transition-all"></span>
+                <span class="wave-bar w-1 h-1.5 bg-brass-light rounded-full transition-all"></span>
+                <span class="wave-bar w-1 h-1.5 bg-brass-light rounded-full transition-all"></span>
+                <span class="wave-bar w-1 h-1.5 bg-brass-light rounded-full transition-all"></span>
+                <span id="buddy-state-text" class="text-[11px] text-parchment/75 ml-2">Ask me anything or tap the mic!</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Topic Prompts -->
+        <div class="px-3.5 py-2.5 bg-parchment-warm/70 border-b border-parchment-border flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+          <button onclick="sendQuickQuestion('Why is it called Fort Aguada and how did the freshwater cistern work?')" class="shrink-0 px-2.5 py-1 rounded-full bg-white hover:bg-laterite hover:text-white border border-parchment-border text-xs font-medium text-arabian transition-colors cursor-pointer">💧 Name & Water</button>
+          <button onclick="sendQuickQuestion('Tell me about the 1609-1612 construction and laterite stone architecture.')" class="shrink-0 px-2.5 py-1 rounded-full bg-white hover:bg-laterite hover:text-white border border-parchment-border text-xs font-medium text-arabian transition-colors cursor-pointer">🧱 Construction</button>
+          <button onclick="sendQuickQuestion('What is the story of the 1864 lighthouse and the Aguada Central Jail?')" class="shrink-0 px-2.5 py-1 rounded-full bg-white hover:bg-laterite hover:text-white border border-parchment-border text-xs font-medium text-arabian transition-colors cursor-pointer">🚨 Lighthouse & Jail</button>
+          <button onclick="sendQuickQuestion('Are there secret escape tunnels or local legends at Fort Aguada?')" class="shrink-0 px-2.5 py-1 rounded-full bg-white hover:bg-laterite hover:text-white border border-parchment-border text-xs font-medium text-arabian transition-colors cursor-pointer">🗝️ Secret Legends</button>
+        </div>
+
+        <!-- Chat Transcript Stream -->
+        <div id="chat-messages" class="flex-1 p-4 space-y-3.5 overflow-y-auto max-h-[340px] min-h-[260px] bg-parchment/35">
+          <!-- Initial Greeting Message -->
+          <div class="flex items-start gap-2.5">
+            <div class="w-7 h-7 rounded-lg bg-laterite text-white font-display font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">CV</div>
+            <div class="bg-white border border-parchment-border rounded-2xl rounded-tl-sm px-3.5 py-2.5 text-xs sm:text-sm text-arabian shadow-sm leading-relaxed">
+              <em>Bem-vindo, traveler!</em> I am <strong>Capitão Vasco</strong>. Stand beside me atop the Sinquerim headland—ask by voice or text about our 1612 laterite ramparts, the 2.38-million-gallon freshwater cistern, the 1864 lighthouse, or secret tunnels beneath the sea!
+            </div>
+          </div>
+        </div>
+
+        <!-- Voice & Text Input Bar -->
+        <div class="p-3 bg-white border-t border-parchment-border">
+          <form id="buddy-form" onsubmit="handleChatSubmit(event)" class="flex items-center gap-2">
+            <!-- Microphone Speech-to-Text Button -->
+            <button type="button" id="btn-mic" onclick="toggleMicrophone()" class="p-3 rounded-xl bg-parchment-warm hover:bg-laterite hover:text-white text-laterite border border-parchment-border transition-all shrink-0 cursor-pointer" title="Speak to Capitão Vasco">
+              <svg id="mic-icon" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 10v2a7 7 0 01-14 0v-2M12 19v4M8 23h8"/>
+              </svg>
+            </button>
+
+            <input id="chat-input" type="text" placeholder="Ask about history, lighthouse, tunnels..." class="flex-1 px-3.5 py-2.5 rounded-xl bg-parchment/60 border border-parchment-border text-sm text-arabian placeholder:text-arabian/45 focus:outline-none focus:border-laterite" />
+
+            <button type="submit" class="px-4 py-2.5 rounded-xl bg-laterite hover:bg-laterite-dark text-white font-semibold text-sm transition-colors shrink-0 cursor-pointer">
+              Send
+            </button>
+          </form>
+          <div id="mic-status-bar" class="hidden mt-2 text-[11px] font-medium text-laterite flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-red-600 animate-ping"></span>
+            <span id="mic-status-text">Listening... speak your question about Fort Aguada</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CHRONOLOGICAL VISUAL EVOLUTION ARCHIVE (OLDEST TO NEWEST — USING ALL 5 USER IMAGES) -->
+  <section id="evolution-archive" class="py-14 sm:py-20 bg-arabian-deep text-parchment border-y border-brass/30">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="max-w-3xl">
+        <span class="text-xs font-bold uppercase tracking-[0.2em] text-brass-light">Visual Time Capsule • Oldest to Newest</span>
+        <h2 class="font-display text-3xl sm:text-4xl font-bold text-white mt-2">
+          Two Centuries of Fort Aguada in Imagery
+        </h2>
+        <p class="mt-3 text-sm sm:text-base text-parchment/80 leading-relaxed">
+          Trace the architectural continuity of Fort Aguada from a 19th-century European copperplate engraving and early archival photography to contemporary aerial views of the circular Sinquerim sea bastion.
+        </p>
+      </div>
+
+      <!-- INTERACTIVE THEN vs. NOW SLIDER (1800s Engraving vs Modern Aerial View) -->
+      <div class="mt-10 bg-arabian rounded-2xl border border-brass/35 p-4 sm:p-6 shadow-2xl">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div>
+            <h3 class="font-display text-lg sm:text-xl font-bold text-brass-light">Interactive Evolution Comparator: c. 1800s Engraving vs. Modern Era</h3>
+            <p class="text-xs text-parchment/75">Drag the brass slider horizontally to compare the oldest historical engraving with contemporary coastal fortification views.</p>
+          </div>
+          <span class="px-3 py-1 rounded-full bg-laterite/35 border border-brass/40 text-xs font-semibold text-brass-light">Drag Slider ↔</span>
+        </div>
+
+        <div id="compare-box" class="compare-container relative w-full h-[300px] sm:h-[460px] rounded-xl border border-brass/30">
+          <!-- Bottom Layer: Modern Aerial Color Image (1.jpg) -->
+          <img src="1.jpg" alt="Modern Aerial View of Fort Aguada Sea Bastion and Sinquerim Coast" class="w-full h-full object-cover" />
+          <span class="absolute bottom-3 right-3 px-3 py-1 rounded-lg bg-arabian-deep/85 text-brass-light text-xs font-semibold border border-brass/40">Modern Era • Sinquerim Sea Bastion</span>
+
+          <!-- Top Clipped Layer: Oldest 19th-Century Engraving (aguadDrawing.webp) -->
+          <div id="compare-clip" class="compare-overlay" style="width: 50%;">
+            <img id="compare-left-img" src="aguadDrawing.webp" alt="Oldest 19th-Century Engraving of Fort Aguada" class="h-full max-w-none object-cover" />
+            <span class="absolute bottom-3 left-3 px-3 py-1 rounded-lg bg-arabian-deep/85 text-parchment text-xs font-semibold border border-brass/40">c. 1800s Archival Engraving • Oldest Record</span>
+          </div>
+
+          <!-- Draggable Divider Handle -->
+          <div id="compare-slider-handle" class="compare-handle" style="left: 50%;">
+            <div class="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-brass text-arabian-deep font-bold flex items-center justify-center shadow-xl border-2 border-white">
+              ⇄
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5-STAGE CHRONOLOGICAL CURATED GALLERY (ALL 5 REFERENCE IMAGES) -->
+      <div class="mt-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+        <!-- Card 1: Oldest Image — c. 1800s Engraving (aguadDrawing.webp) -->
+        <article class="bg-arabian rounded-2xl border border-brass/30 overflow-hidden flex flex-col shadow-lg group">
+          <div class="relative h-60 overflow-hidden bg-black">
+            <img src="aguadDrawing.webp" alt="Oldest 19th-century engraving of Fort Aguada citadel and sea walls" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+            <span class="absolute top-3 left-3 px-2.5 py-1 rounded-md bg-laterite text-white text-[11px] font-bold uppercase tracking-wider">1 • Oldest Record (c. 1800s)</span>
+          </div>
+          <div class="p-5 flex-1 flex flex-col">
+            <h3 class="font-display text-lg font-bold text-brass-light">19th-Century Estuary Engraving</h3>
+            <p class="text-xs text-parchment/80 mt-2 leading-relaxed flex-1">
+              One of the earliest surviving European illustrations of Aguada. It depicts the stepped curtain walls climbing the Sinquerim headland from the waterfront barracks up to the hilltop citadel, signal mast, and church tower, while lateen-rigged vessels navigate the Mandovi mouth.
+            </p>
+            <div class="mt-4 pt-3 border-t border-white/10 text-[11px] text-brass-light/90 font-medium">
+              Key Feature: Stepped curtain wall linking Upper Citadel to Lower Waterfront
+            </div>
+          </div>
+        </article>
+
+        <!-- Card 2: Early-Mid 20th Century Archival Photo (images (3).jpg) -->
+        <article class="bg-arabian rounded-2xl border border-brass/30 overflow-hidden flex flex-col shadow-lg group">
+          <div class="relative h-60 overflow-hidden bg-black">
+            <img src="images (3).jpg" alt="Early 20th century monochrome photograph of Lower Fort Aguada barracks and seawall" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+            <span class="absolute top-3 left-3 px-2.5 py-1 rounded-md bg-arabian-slate border border-brass/50 text-brass-light text-[11px] font-bold uppercase tracking-wider">2 • Colonial Era Archive</span>
+          </div>
+          <div class="p-5 flex-1 flex flex-col">
+            <h3 class="font-display text-lg font-bold text-brass-light">Lower Fort & Shoreline Barracks</h3>
+            <p class="text-xs text-parchment/80 mt-2 leading-relaxed flex-1">
+              A rare monochrome photograph capturing the wave-lashed laterite seawalls, arched portal, and whitewashed tiled-roof structures along the lower shore—later repurposed as the Aguada Central Jail where Goan freedom fighters were incarcerated prior to 1961.
+            </p>
+            <div class="mt-4 pt-3 border-t border-white/10 text-[11px] text-brass-light/90 font-medium">
+              Key Feature: Tidal seawall masonry & colonial-era coastal garrison quarters
+            </div>
+          </div>
+        </article>
+
+        <!-- Card 3: Heritage Lighthouse Study (images (4).jpg) -->
+        <article class="bg-arabian rounded-2xl border border-brass/30 overflow-hidden flex flex-col shadow-lg group">
+          <div class="relative h-60 overflow-hidden bg-black">
+            <img src="images (4).jpg" alt="Monochrome architectural view of the 1864 Fort Aguada Lighthouse tower" class="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500" />
+            <span class="absolute top-3 left-3 px-2.5 py-1 rounded-md bg-arabian-slate border border-brass/50 text-brass-light text-[11px] font-bold uppercase tracking-wider">3 • 1864 Maritime Beacon</span>
+          </div>
+          <div class="p-5 flex-1 flex flex-col">
+            <h3 class="font-display text-lg font-bold text-brass-light">The Four-Storey Lighthouse</h3>
+            <p class="text-xs text-parchment/80 mt-2 leading-relaxed flex-1">
+              Erected in <strong>1864</strong> atop the upper plateau, this 13-meter cylindrical masonry tower is among the oldest lighthouses in Asia. Originally housing an oil lamp that rotated once every seven minutes, it guided ships clear of the Aguada sandbars until 1976.
+            </p>
+            <div class="mt-4 pt-3 border-t border-white/10 text-[11px] text-brass-light/90 font-medium">
+              Key Feature: Weathered cylindrical laterite drum, gallery balustrade & lantern cupola
+            </div>
+          </div>
+        </article>
+
+        <!-- Card 4: Modern Aerial Perspective (1.jpg) -->
+        <article class="bg-arabian rounded-2xl border border-brass/30 overflow-hidden flex flex-col shadow-lg group md:col-span-1 lg:col-span-2">
+          <div class="relative h-64 sm:h-72 overflow-hidden bg-black">
+            <img src="1.jpg" alt="Modern aerial view of Fort Aguada Circular Bastion and Jetty at Sinquerim" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+            <span class="absolute top-3 left-3 px-2.5 py-1 rounded-md bg-emerald-800 text-white text-[11px] font-bold uppercase tracking-wider">4 • Contemporary Aerial Survey</span>
+          </div>
+          <div class="p-5 flex-1 flex flex-col">
+            <h3 class="font-display text-lg font-bold text-brass-light">The Sinquerim Sea Bastion & Causeway Today</h3>
+            <p class="text-xs sm:text-sm text-parchment/80 mt-2 leading-relaxed flex-1">
+              Today, Fort Aguada stands as an iconic Archaeological Survey of India (ASI) monument. This elevated coastal angle reveals the engineering brilliance of the projecting circular battery and narrow stone pier bisecting the golden sands of Sinquerim Beach—designed so Portuguese ships could replenish fresh water directly beneath protective cannon crossfire.
+            </p>
+            <div class="mt-4 pt-3 border-t border-white/10 text-[11px] text-brass-light/90 font-medium">
+              Key Feature: Circular sea battery extending into the surf & elevated laterite approach jetty
+            </div>
+          </div>
+        </article>
+
+        <!-- Card 5: Newest Golden Hour Coastal Panorama (images (5).jpg) -->
+        <article class="bg-arabian rounded-2xl border border-brass/30 overflow-hidden flex flex-col shadow-lg group">
+          <div class="relative h-64 sm:h-72 overflow-hidden bg-black">
+            <img src="images (5).jpg" alt="Newest golden hour sunset view of Fort Aguada bastion and coastal ramparts" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+            <span class="absolute top-3 left-3 px-2.5 py-1 rounded-md bg-brass text-arabian-deep text-[11px] font-bold uppercase tracking-wider">5 • Newest Sunset Vista</span>
+          </div>
+          <div class="p-5 flex-1 flex flex-col">
+            <h3 class="font-display text-lg font-bold text-brass-light">Golden Hour Over the Ramparts</h3>
+            <p class="text-xs text-parchment/80 mt-2 leading-relaxed flex-1">
+              Captured at dusk along the rocky headland, the iron-rich red laterite walls glow amber against the foaming Arabian Sea. The sweeping coastal curtain wall curves around the lush headland where the Mandovi estuary opens into the Indian Ocean.
+            </p>
+            <div class="mt-4 pt-3 border-t border-white/10 text-[11px] text-brass-light/90 font-medium">
+              Key Feature: Continuous terraced coastal ramparts & headland promontory
+            </div>
+          </div>
+        </article>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ARCHITECTURAL ANATOMY & ENGINEERING DEEP DIVE -->
+  <section id="architecture" class="py-14 sm:py-20 heritage-grain">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center max-w-3xl mx-auto">
+        <span class="text-xs font-bold uppercase tracking-[0.2em] text-laterite">Military & Hydraulic Engineering</span>
+        <h2 class="font-display text-3xl sm:text-4xl font-bold text-arabian-deep mt-2">
+          How Fort Aguada Was Engineered
+        </h2>
+        <p class="mt-3 text-sm sm:text-base text-arabian/75">
+          Built to withstand both naval bombardments and the torrential Konkan monsoons, Aguada combined Indo-Portuguese stonecraft with one of Asia’s largest colonial water-harvesting systems.
+        </p>
+      </div>
+
+      <div class="mt-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <!-- Engineering Pillar 1 -->
+        <div class="bg-white rounded-2xl p-6 border border-parchment-border shadow-md hover:shadow-xl transition-shadow">
+          <div class="w-12 h-12 rounded-xl bg-laterite/10 text-laterite flex items-center justify-center font-display text-xl font-bold mb-4">01</div>
+          <h3 class="font-display text-lg font-bold text-arabian-deep">Ferruginous Laterite Stone</h3>
+          <p class="text-sm text-arabian/75 mt-2 leading-relaxed">
+            Quarried directly from the Sinquerim plateau, porous red laterite is soft enough to cut into massive blocks when freshly excavated, yet oxidizes and hardens like iron upon exposure to coastal air and monsoon rain.
+          </p>
+        </div>
+
+        <!-- Engineering Pillar 2 -->
+        <div class="bg-white rounded-2xl p-6 border border-parchment-border shadow-md hover:shadow-xl transition-shadow">
+          <div class="w-12 h-12 rounded-xl bg-laterite/10 text-laterite flex items-center justify-center font-display text-xl font-bold mb-4">02</div>
+          <h3 class="font-display text-lg font-bold text-arabian-deep">2.38-Million-Gallon Cistern</h3>
+          <p class="text-sm text-arabian/75 mt-2 leading-relaxed">
+            Fed by three perennial natural springs inside the fort, a vaulted subterranean reservoir divided into five chambers supported by sixteen sturdy pillars stored <strong>2,376,000 gallons</strong> of sweet drinking water for Carreira da Índia fleets.
+          </p>
+        </div>
+
+        <!-- Engineering Pillar 3 -->
+        <div class="bg-white rounded-2xl p-6 border border-parchment-border shadow-md hover:shadow-xl transition-shadow">
+          <div class="w-12 h-12 rounded-xl bg-laterite/10 text-laterite flex items-center justify-center font-display text-xl font-bold mb-4">03</div>
+          <h3 class="font-display text-lg font-bold text-arabian-deep">Upper & Lower Dual Citadel</h3>
+          <p class="text-sm text-arabian/75 mt-2 leading-relaxed">
+            The <strong>Upper Fort</strong> commanded high-elevation artillery range and housed the magazine, church, and lighthouse, while the <strong>Lower Fort</strong> protected the harbor berth and watering jetty at sea level.
+          </p>
+        </div>
+
+        <!-- Engineering Pillar 4 -->
+        <div class="bg-white rounded-2xl p-6 border border-parchment-border shadow-md hover:shadow-xl transition-shadow">
+          <div class="w-12 h-12 rounded-xl bg-laterite/10 text-laterite flex items-center justify-center font-display text-xl font-bold mb-4">04</div>
+          <h3 class="font-display text-lg font-bold text-arabian-deep">Deep Dry Moat & Bastions</h3>
+          <p class="text-sm text-arabian/75 mt-2 leading-relaxed">
+            Encircling the landward side of the upper plateau is a deep rock-cut dry moat flanked by semi-circular bastions and 5-meter-thick embrasured ramparts that prevented infantry scaling.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HISTORICAL TIMELINE (1609 – PRESENT) -->
+  <section id="chronicle" class="py-14 sm:py-20 bg-parchment-warm border-t border-parchment-border">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center mb-12">
+        <span class="text-xs font-bold uppercase tracking-[0.2em] text-laterite">Four Centuries of History</span>
+        <h2 class="font-display text-3xl sm:text-4xl font-bold text-arabian-deep mt-2">
+          Chronicle of Fort Aguada
+        </h2>
+      </div>
+
+      <div class="relative border-l-2 border-laterite/40 ml-4 sm:ml-8 space-y-8">
+        <!-- Event 1 -->
+        <div class="relative pl-8">
+          <span class="absolute -left-[9px] top-1.5 w-4 h-4 rounded-full bg-laterite border-4 border-parchment-warm"></span>
+          <span class="text-xs font-bold uppercase tracking-wider text-laterite">1609 – 1612 • Founding & Construction</span>
+          <h3 class="font-display text-xl font-bold text-arabian-deep mt-1">Shielding Old Goa Against Dutch Blockades</h3>
+          <p class="text-sm text-arabian/80 mt-1.5 leading-relaxed">
+            Following Dutch naval incursions along the Malabar and Konkan coasts in 1604–1606, Portuguese Viceroy <strong>Rui Lourenço de Távora</strong> commissioned Fort Aguada at the northern tip of the Mandovi estuary. Completed in 1612 under Viceroy Jerónimo de Azevedo, it formed an interlocking crossfire triangle with Fort Reis Magos and Gaspar Dias.
+          </p>
+        </div>
+
+        <!-- Event 2 -->
+        <div class="relative pl-8">
+          <span class="absolute -left-[9px] top-1.5 w-4 h-4 rounded-full bg-brass border-4 border-parchment-warm"></span>
+          <span class="text-xs font-bold uppercase tracking-wider text-laterite">17th – 18th Centuries • The Watering Station</span>
+          <h3 class="font-display text-xl font-bold text-arabian-deep mt-1">"Aguada" — Lifesaver of the Spice Fleets</h3>
+          <p class="text-sm text-arabian/80 mt-1.5 leading-relaxed">
+            Derived from the Portuguese word <em>água</em> (water), Aguada became the mandatory final anchorage for galleons and carracks departing Goa for Europe. Sailors filled oak casks from its spring-fed cistern before braving the months-long voyage around the Cape of Good Hope.
+          </p>
+        </div>
+
+        <!-- Event 3 -->
+        <div class="relative pl-8">
+          <span class="absolute -left-[9px] top-1.5 w-4 h-4 rounded-full bg-laterite border-4 border-parchment-warm"></span>
+          <span class="text-xs font-bold uppercase tracking-wider text-laterite">1864 • Maritime Modernization</span>
+          <h3 class="font-display text-xl font-bold text-arabian-deep mt-1">Asia’s Pioneering Rotating Lighthouse</h3>
+          <p class="text-sm text-arabian/80 mt-1.5 leading-relaxed">
+            To prevent shipwrecks on the shifting Aguada sandbar during monsoon squalls, engineers constructed the four-storey cylindrical lighthouse inside the upper citadel. Originally illuminated by an oil-burning lamp with rotating reflectors, it was upgraded to a vapor-light beacon in 1929 before retiring in 1976.
+          </p>
+        </div>
+
+        <!-- Event 4 -->
+        <div class="relative pl-8">
+          <span class="absolute -left-[9px] top-1.5 w-4 h-4 rounded-full bg-brass border-4 border-parchment-warm"></span>
+          <span class="text-xs font-bold uppercase tracking-wider text-laterite">1946 – 1961 • Goa Liberation Movement</span>
+          <h3 class="font-display text-xl font-bold text-arabian-deep mt-1">Crucible of Freedom Fighters</h3>
+          <p class="text-sm text-arabian/80 mt-1.5 leading-relaxed">
+            During the struggle for Goa’s liberation from colonial rule, the Lower Fort served as a high-security prison holding prominent nationalists, including <strong>Dr. Ram Manohar Lohia</strong>, <strong>Tristão de Bragança Cunha (T.B. Cunha)</strong>, and <strong>Mohan Ranade</strong>. It remained Goa’s Central Jail until 2015, when it was transformed into a heritage memorial.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LOCAL STORIES, FOLKLORE & VISITOR SIGNIFICANCE -->
+  <section id="folklore" class="py-14 sm:py-20 bg-white border-t border-parchment-border">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div class="lg:col-span-1">
+          <span class="text-xs font-bold uppercase tracking-[0.2em] text-laterite">Whispers of Sinquerim</span>
+          <h2 class="font-display text-3xl font-bold text-arabian-deep mt-2">
+            Local Legends & Cultural Significance
+          </h2>
+          <p class="mt-3 text-sm text-arabian/75 leading-relaxed">
+            Beyond stone and mortar, Fort Aguada lives in Goan maritime folklore, architectural symbolism, and panoramic coastal beauty.
+          </p>
+          <button onclick="sendQuickQuestion('Share the most fascinating local legend or secret story about Fort Aguada!')" class="mt-6 px-5 py-3 rounded-xl bg-arabian text-brass-light hover:bg-arabian-slate text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer">
+            Hear Capitão Vasco Tell the Lore →
+          </button>
+        </div>
+
+        <div class="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <div class="p-6 rounded-2xl bg-parchment border border-parchment-border">
+            <h3 class="font-display text-lg font-bold text-laterite">The Subterranean Escape Tunnels</h3>
+            <p class="text-sm text-arabian/80 mt-2 leading-relaxed">
+              Local oral tradition speaks of secret vaulted passages beneath the laterite bedrock linking the Upper Citadel to the Sinquerim Sea Bastion—and allegedly even under the Mandovi riverbed toward Reis Magos—allowing garrison commanders to evacuate during a siege.
+            </p>
+          </div>
+
+          <div class="p-6 rounded-2xl bg-parchment border border-parchment-border">
+            <h3 class="font-display text-lg font-bold text-laterite">The Unconquered Fortress</h3>
+            <p class="text-sm text-arabian/80 mt-2 leading-relaxed">
+              Remarkably, throughout its more than 350 years of active military service under Portuguese rule, Fort Aguada was never breached or captured by a hostile naval force—earning a reputation as the impregnable guardian of Old Goa.
+            </p>
+          </div>
+
+          <div class="p-6 rounded-2xl bg-parchment border border-parchment-border">
+            <h3 class="font-display text-lg font-bold text-laterite">Church of St. Lawrence (São Lourenço)</h3>
+            <p class="text-sm text-arabian/80 mt-2 leading-relaxed">
+              Within the fortified precinct stands the whitewashed hermitage dedicated to St. Lawrence, patron saint of mariners, where sailors offered thanksgiving prayers upon safely crossing the treacherous Arabian Sea monsoons.
+            </p>
+          </div>
+
+          <div class="p-6 rounded-2xl bg-parchment border border-parchment-border">
+            <h3 class="font-display text-lg font-bold text-laterite">Confluence of River & Ocean</h3>
+            <p class="text-sm text-arabian/80 mt-2 leading-relaxed">
+              From the upper bastions, visitors witness the distinct color boundary where the freshwater silt of the Mandovi River merges with the deep turquoise waters of the Arabian Sea, framed by Candolim and Sinquerim beaches.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="bg-arabian-deep text-parchment/75 border-t border-brass/30 py-10">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
+      <div>
+        <span class="font-display font-bold text-brass-light text-sm">FORT AGUADA DIGITAL HERITAGE PROJECT</span>
+        <p class="mt-1">Interactive 3D Architectural Reconstruction & AI Historical Companion • Sinquerim, Bardez, Goa</p>
+      </div>
+      <div class="text-parchment/60">
+        Built with Three.js WebGL & Gemini AI Historian
+      </div>
+    </div>
+  </footer>
+
+  <!-- ===================================================================== -->
+  <!-- JAVASCRIPT: 3D FORT AGUADA MODEL + GEMINI AI TALKING BUDDY + GALLERY   -->
+  <!-- ===================================================================== -->
+  <script>
+    // =========================================================================
+    // 1. REALISTIC 3D RECONSTRUCTION STRICTLY MODELED AFTER FIRST IMAGE (1.jpg)
+    // =========================================================================
+    let scene, camera, renderer, waterMesh;
+    let sunLight, hemiLight, ambientLight;
+    let isGoldenHour = false;
+    let currentHotspotIndex = 0;
+
+    // Camera Orbit State — Default "Aerial Overview" matches exact perspective of 1.jpg
+    const orbitState = {
+      theta: 0.42,       // Elevated diagonal seaward angle matching 1.jpg
+      phi: 0.96,         // Elevated bird's-eye pitch matching 1.jpg
+      radius: 42,        // Distance framing full coastline, bastion & terraced compound
+      target: new THREE.Vector3(0, 2.6, 1.5),
+      goalTheta: 0.42,
+      goalPhi: 0.96,
+      goalRadius: 42,
+      goalTarget: new THREE.Vector3(0, 2.6, 1.5),
+      isDragging: false,
+      prevX: 0,
+      prevY: 0
+    };
+
+    // Interactive 3D Hotspots mapped strictly to features visible in 1.jpg
+    const HOTSPOTS = [
+      {
+        id: 'bastion',
+        tag: '1612 Maritime Defense • Lower Fort',
+        title: 'Circular Sea Bastion',
+        desc: 'Extending directly into the surf of Sinquerim Beach, this large cylindrical dark-laterite artillery bastion features a flat sandy top deck, recessed stone parapet walls, and crenellated gun embrasures overlooking the anchorage.',
+        pos: new THREE.Vector3(10.5, 3.1, 13.8),
+        preset: 'bastion'
+      },
+      {
+        id: 'pier',
+        tag: 'Watering & Defense Causeway',
+        title: 'Elevated Laterite Causeway Pier',
+        desc: 'A thick, weathered red-laterite stone pier extending straight out from the curved coastal embankment across the golden sands to connect the shoreline promenade with the circular sea battery.',
+        pos: new THREE.Vector3(3.8, 2.9, 6.4),
+        preset: 'pier'
+      },
+      {
+        id: 'coves',
+        tag: 'Sinquerim Shoreline',
+        title: 'Twin Golden Sand Coves',
+        desc: 'Two sweeping golden-tan sandy coves flank the central laterite jetty, washed by emerald-to-turquoise Arabian Sea waves and bordered on the left by lush coastal greenery and stone beach steps.',
+        pos: new THREE.Vector3(-9.5, 1.4, 8.5),
+        preset: 'pier'
+      },
+      {
+        id: 'seawall',
+        tag: 'Coastal Retaining Fortification',
+        title: 'Curved Laterite Seawall & Promenade',
+        desc: 'A continuous curved laterite retaining wall and reddish-earth coastal footpath running along the embankment ridge above both beaches, complete with stone steps descending toward the sand.',
+        pos: new THREE.Vector3(-3.2, 3.6, 0.2),
+        preset: 'terraces'
+      },
+      {
+        id: 'pavilion',
+        tag: 'Hilltop Terraced Compound',
+        title: 'Palm-Lined Terraces, Pool & Pavilion',
+        desc: 'Elevated behind the coastal promenade on manicured green lawns fringed with tall coconut palms, featuring the butterfly-winged white-roofed central pavilion, flanking terracotta-roofed wings, thatched cabanas, and turquoise pool.',
+        pos: new THREE.Vector3(-2.5, 6.8, -11.5),
+        preset: 'terraces'
+      }
+    ];
+
+    // Procedural Laterite Stone Texture Generator for Realistic Weathered Masonry
+    function createLateriteTexture(baseHex, darkHex, lightHex) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 512;
+      const ctx = canvas.getContext('2d');
+
+      ctx.fillStyle = baseHex;
+      ctx.fillRect(0, 0, 512, 512);
+
+      // Horizontal coursed ashlar stone blocks
+      const rows = 18;
+      const rowH = 512 / rows;
+      for (let r = 0; r < rows; r++) {
+        const y = r * rowH;
+        const offset = (r % 2) * 30;
+        ctx.strokeStyle = darkHex;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(512, y);
+        ctx.stroke();
+
+        for (let c = -1; c < 10; c++) {
+          const x = c * 60 + offset;
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          ctx.lineTo(x, y + rowH);
+          ctx.stroke();
+        }
+      }
+
+      // Porous iron-rich laterite pitting & salt-spray weathering
+      for (let i = 0; i < 5000; i++) {
+        const x = Math.random() * 512;
+        const y = Math.random() * 512;
+        const radius = Math.random() * 2.2;
+        ctx.fillStyle = Math.random() > 0.45 ? darkHex : lightHex;
+        ctx.globalAlpha = 0.28 + Math.random() * 0.35;
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1.0;
+
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      return tex;
+    }
+
+    function initThreeJS() {
+      const container = document.getElementById('fort-canvas-wrapper');
+      const canvas = document.getElementById('fort-canvas');
+
+      const width = container.clientWidth || window.innerWidth * 0.65 || 800;
+      const height = container.clientHeight || 560;
+
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x9BC6DC);
+      scene.fog = new THREE.FogExp2(0x9BC6DC, 0.0075);
+
+      camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 400);
+
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+      renderer.setSize(width, height);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.08;
+
+      // Natural Coastal Daylight Lighting (matching 1.jpg sun direction)
+      ambientLight = new THREE.AmbientLight(0xFFF6E8, 0.62);
+      scene.add(ambientLight);
+
+      hemiLight = new THREE.HemisphereLight(0xC6E7FF, 0x7A5C3E, 0.65);
+      scene.add(hemiLight);
+
+      sunLight = new THREE.DirectionalLight(0xFFF3DC, 1.48);
+      sunLight.position.set(26, 38, 22);
+      sunLight.castShadow = true;
+      sunLight.shadow.mapSize.width = 2048;
+      sunLight.shadow.mapSize.height = 2048;
+      sunLight.shadow.camera.near = 5;
+      sunLight.shadow.camera.far = 110;
+      const d = 34;
+      sunLight.shadow.camera.left = -d;
+      sunLight.shadow.camera.right = d;
+      sunLight.shadow.camera.top = d;
+      sunLight.shadow.camera.bottom = -d;
+      sunLight.shadow.bias = -0.0005;
+      scene.add(sunLight);
+
+      // Materials matching 1.jpg palette
+      const darkLateriteTex = createLateriteTexture('#683222', '#38180E', '#8D4933');
+      darkLateriteTex.repeat.set(4, 2);
+      const bastionLateriteMat = new THREE.MeshStandardMaterial({
+        map: darkLateriteTex,
+        roughness: 0.9,
+        metalness: 0.04
+      });
+
+      const warmLateriteTex = createLateriteTexture('#863A24', '#4A1D10', '#AD5438');
+      warmLateriteTex.repeat.set(3, 2);
+      const wallLateriteMat = new THREE.MeshStandardMaterial({
+        map: warmLateriteTex,
+        roughness: 0.88,
+        metalness: 0.04
+      });
+
+      const goldenSandMat = new THREE.MeshStandardMaterial({
+        color: 0xDFB67E,
+        roughness: 0.94
+      });
+
+      const wetSandMat = new THREE.MeshStandardMaterial({
+        color: 0xB88952,
+        roughness: 0.72
+      });
+
+      const redEarthPathMat = new THREE.MeshStandardMaterial({
+        color: 0xB84E2E,
+        roughness: 0.92
+      });
+
+      const lushLawnMat = new THREE.MeshStandardMaterial({
+        color: 0x45732E,
+        roughness: 0.88
+      });
+
+      const shrubGreenMat = new THREE.MeshStandardMaterial({
+        color: 0x2F5A20,
+        roughness: 0.92
+      });
+
+      const creamFacadeMat = new THREE.MeshStandardMaterial({
+        color: 0xEDE5D2,
+        roughness: 0.78
+      });
+
+      const whitePavilionRoofMat = new THREE.MeshStandardMaterial({
+        color: 0xF4F2EC,
+        roughness: 0.65
+      });
+
+      const terracottaRoofMat = new THREE.MeshStandardMaterial({
+        color: 0xA8482B,
+        roughness: 0.82
+      });
+
+      const thatchRoofMat = new THREE.MeshStandardMaterial({
+        color: 0x6E5338,
+        roughness: 0.95
+      });
+
+      const poolWaterMat = new THREE.MeshStandardMaterial({
+        color: 0x1CC5DC,
+        emissive: 0x0A7E94,
+        emissiveIntensity: 0.35,
+        roughness: 0.15,
+        metalness: 0.1
+      });
+
+      // =========================================================================
+      // 1. FOREGROUND EMERALD-TO-TURQUOISE ARABIAN SEA & FOAM SURF (1.jpg)
+      // =========================================================================
+      const waterGeo = new THREE.PlaneGeometry(240, 240, 110, 110);
+      waterGeo.rotateX(-Math.PI / 2);
+      const waterMat = new THREE.MeshStandardMaterial({
+        color: 0x256D6E,
+        roughness: 0.24,
+        metalness: 0.28
+      });
+      waterMesh = new THREE.Mesh(waterGeo, waterMat);
+      waterMesh.receiveShadow = true;
+      scene.add(waterMesh);
+
+      const posAttr = waterGeo.attributes.position;
+      waterMesh.userData.baseY = new Float32Array(posAttr.count);
+      for (let i = 0; i < posAttr.count; i++) {
+        waterMesh.userData.baseY[i] = posAttr.getY(i);
+      }
+
+      // White Surf Foam Lines lapping onto the twin beaches & around the circular bastion
+      const foamMat = new THREE.MeshBasicMaterial({
+        color: 0xF5FAFA,
+        transparent: true,
+        opacity: 0.72
+      });
+
+      // Foam ring around the base of the circular sea bastion
+      const bastionFoam = new THREE.Mesh(new THREE.RingGeometry(3.85, 4.55, 44), foamMat);
+      bastionFoam.rotation.x = -Math.PI / 2;
+      bastionFoam.position.set(10.5, 0.14, 13.8);
+      scene.add(bastionFoam);
+
+      // Surf lines along left and right coves
+      const leftSurf = new THREE.Mesh(new THREE.PlaneGeometry(18, 0.65), foamMat);
+      leftSurf.rotation.x = -Math.PI / 2;
+      leftSurf.rotation.z = -0.35;
+      leftSurf.position.set(-7.5, 0.12, 12.2);
+      scene.add(leftSurf);
+
+      const rightSurf = new THREE.Mesh(new THREE.PlaneGeometry(16, 0.6), foamMat);
+      rightSurf.rotation.x = -Math.PI / 2;
+      rightSurf.rotation.z = -0.45;
+      rightSurf.position.set(16.5, 0.12, 6.5);
+      scene.add(rightSurf);
+
+      // =========================================================================
+      // 2. TWIN GOLDEN-TAN SANDY COVES FLANKING THE CENTRAL PIER (1.jpg)
+      // =========================================================================
+      // Left Broad Golden Beach Cove (left of causeway in 1.jpg)
+      const leftBeach = new THREE.Mesh(new THREE.CylinderGeometry(14.5, 17.5, 0.85, 36), goldenSandMat);
+      leftBeach.position.set(-10.5, 0.22, 6.2);
+      leftBeach.scale.set(1.25, 1, 0.85);
+      leftBeach.receiveShadow = true;
+      scene.add(leftBeach);
+
+      // Wet shoreline apron on left beach
+      const leftWetSand = new THREE.Mesh(new THREE.CylinderGeometry(15.2, 17.8, 0.45, 36), wetSandMat);
+      leftWetSand.position.set(-10.2, 0.08, 7.6);
+      leftWetSand.scale.set(1.25, 1, 0.88);
+      leftWetSand.receiveShadow = true;
+      scene.add(leftWetSand);
+
+      // Right Golden Beach Cove (right of causeway in 1.jpg)
+      const rightBeach = new THREE.Mesh(new THREE.CylinderGeometry(13.0, 15.8, 0.85, 36), goldenSandMat);
+      rightBeach.position.set(12.2, 0.22, 3.2);
+      rightBeach.scale.set(1.15, 1, 0.78);
+      rightBeach.receiveShadow = true;
+      scene.add(rightBeach);
+
+      // =========================================================================
+      // 3. ICONIC CIRCULAR LATERITE SEA BASTION & ELEVATED CAUSEWAY PIER (1.jpg)
+      // =========================================================================
+      const bastionGroup = new THREE.Group();
+      const bx = 10.5;
+      const bz = 13.8;
+      const bRadius = 3.85;
+      const bHeight = 3.05;
+
+      // Outer battered cylindrical dark-laterite drum
+      const outerDrum = new THREE.Mesh(
+        new THREE.CylinderGeometry(bRadius, bRadius + 0.35, bHeight, 44, 1, true),
+        bastionLateriteMat
+      );
+      outerDrum.position.set(bx, bHeight / 2, bz);
+      outerDrum.castShadow = true;
+      outerDrum.receiveShadow = true;
+      bastionGroup.add(outerDrum);
+
+      // Inner recessed parapet wall
+      const innerDrum = new THREE.Mesh(
+        new THREE.CylinderGeometry(bRadius - 0.62, bRadius - 0.62, bHeight, 40, 1, true),
+        wallLateriteMat
+      );
+      innerDrum.position.set(bx, bHeight / 2, bz);
+      bastionGroup.add(innerDrum);
+
+      // Top parapet walkway rim
+      const topRim = new THREE.Mesh(
+        new THREE.RingGeometry(bRadius - 0.62, bRadius, 44),
+        wallLateriteMat
+      );
+      topRim.rotation.x = -Math.PI / 2;
+      topRim.position.set(bx, bHeight, bz);
+      topRim.castShadow = true;
+      bastionGroup.add(topRim);
+
+      // Flat sandy/earth top deck inside the circular bastion (matching 1.jpg)
+      const deckFloor = new THREE.Mesh(
+        new THREE.CircleGeometry(bRadius - 0.6, 40),
+        goldenSandMat
+      );
+      deckFloor.rotation.x = -Math.PI / 2;
+      deckFloor.position.set(bx, bHeight - 0.85, bz);
+      deckFloor.receiveShadow = true;
+      bastionGroup.add(deckFloor);
+
+      // Crenellated gun embrasures / merlons on the landward side of the circular bastion (1.jpg)
+      for (let m = 0; m < 10; m++) {
+        const ang = Math.PI + (m - 4.5) * 0.24;
+        const merlon = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.55, 0.55), bastionLateriteMat);
+        merlon.position.set(
+          bx + Math.sin(ang) * (bRadius - 0.32),
+          bHeight + 0.25,
+          bz + Math.cos(ang) * (bRadius - 0.32)
+        );
+        merlon.rotation.y = ang;
+        merlon.castShadow = true;
+        bastionGroup.add(merlon);
+      }
+
+      // Elevated Laterite Causeway Pier extending straight from shoreline to circular bastion
+      // Connects (-1.8, 0.5) to (7.6, 10.8)
+      const pierStart = new THREE.Vector3(-1.8, 0, 0.5);
+      const pierEnd = new THREE.Vector3(7.8, 0, 10.9);
+      const pierLen = pierStart.distanceTo(pierEnd);
+      const pierMid = new THREE.Vector3().addVectors(pierStart, pierEnd).multiplyScalar(0.5);
+      const pierAngle = Math.atan2(pierEnd.x - pierStart.x, pierEnd.z - pierStart.z);
+
+      const pierBody = new THREE.Mesh(new THREE.BoxGeometry(2.15, 2.55, pierLen), bastionLateriteMat);
+      pierBody.position.set(pierMid.x, 1.32, pierMid.z);
+      pierBody.rotation.y = pierAngle;
+      pierBody.castShadow = true;
+      pierBody.receiveShadow = true;
+      bastionGroup.add(pierBody);
+
+      // Reddish-earth walkway deck along top of the causeway pier (matching 1.jpg)
+      const pierWalkway = new THREE.Mesh(new THREE.BoxGeometry(1.55, 0.14, pierLen), redEarthPathMat);
+      pierWalkway.position.set(pierMid.x, 2.62, pierMid.z);
+      pierWalkway.rotation.y = pierAngle;
+      pierWalkway.receiveShadow = true;
+      bastionGroup.add(pierWalkway);
+
+      // Left & Right Low Parapet Walls along the Causeway Pier
+      [-0.92, 0.92].forEach(latOffset => {
+        const pWall = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.48, pierLen), wallLateriteMat);
+        pWall.position.set(
+          pierMid.x + Math.cos(pierAngle) * latOffset,
+          2.78,
+          pierMid.z - Math.sin(pierAngle) * latOffset
+        );
+        pWall.rotation.y = pierAngle;
+        pWall.castShadow = true;
+        bastionGroup.add(pWall);
+      });
+
+      scene.add(bastionGroup);
+
+      // =========================================================================
+      // 4. CURVED LATERITE COASTAL RETAINING WALL, PROMENADE & BEACH STEPS (1.jpg)
+      // =========================================================================
+      const seawallCurve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(-24.0, 2.2, -3.5),
+        new THREE.Vector3(-12.5, 2.4, -0.5),
+        new THREE.Vector3(-3.0, 2.6, 0.4),
+        new THREE.Vector3(3.5, 2.5, -1.8),
+        new THREE.Vector3(12.5, 2.4, -3.6),
+        new THREE.Vector3(24.0, 2.2, -4.8)
+      ]);
+
+      const wallSamples = seawallCurve.getPoints(44);
+      for (let i = 0; i < wallSamples.length - 1; i++) {
+        const p1 = wallSamples[i];
+        const p2 = wallSamples[i + 1];
+        const segLen = p1.distanceTo(p2) + 0.18;
+        const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+        const ang = Math.atan2(p2.x - p1.x, p2.z - p1.z);
+
+        const wallSeg = new THREE.Mesh(new THREE.BoxGeometry(0.95, 2.6, segLen), wallLateriteMat);
+        wallSeg.position.set(mid.x, 1.35, mid.z);
+        wallSeg.rotation.y = ang;
+        wallSeg.castShadow = true;
+        wallSeg.receiveShadow = true;
+        scene.add(wallSeg);
+
+        // Reddish-earth coastal footpath/promenade immediately behind the retaining wall (1.jpg)
+        const pathSeg = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.35, segLen + 0.2), redEarthPathMat);
+        pathSeg.position.set(mid.x, 2.55, mid.z - 1.5);
+        pathSeg.rotation.y = ang;
+        pathSeg.receiveShadow = true;
+        scene.add(pathSeg);
+      }
+
+      // Stone Steps descending from the left promenade onto the left sandy beach (visible in 1.jpg)
+      for (let s = 0; s < 7; s++) {
+        const step = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.28, 0.55), wallLateriteMat);
+        step.position.set(-11.2, 2.35 - s * 0.32, -0.2 + s * 0.48);
+        step.castShadow = true;
+        step.receiveShadow = true;
+        scene.add(step);
+      }
+
+      // =========================================================================
+      // 5. ELEVATED GREEN HILLSIDE, POOL, CABANAS & TERRACED PAVILION COMPLEX (1.jpg)
+      // =========================================================================
+      // Terraced Lawn Grounds behind the red-earth coastal road
+      const lowerTerrace = new THREE.Mesh(new THREE.BoxGeometry(52, 2.4, 14), lushLawnMat);
+      lowerTerrace.position.set(0, 1.4, -9.2);
+      lowerTerrace.receiveShadow = true;
+      scene.add(lowerTerrace);
+
+      const upperTerrace = new THREE.Mesh(new THREE.BoxGeometry(54, 2.2, 14), lushLawnMat);
+      upperTerrace.position.set(0, 3.3, -17.5);
+      upperTerrace.receiveShadow = true;
+      scene.add(upperTerrace);
+
+      // Signature Bright Turquoise Freeform Swimming Pool centered in front of the main pavilion (1.jpg)
+      const poolDeck = new THREE.Mesh(new THREE.BoxGeometry(7.6, 0.25, 4.6), creamFacadeMat);
+      poolDeck.position.set(-2.2, 2.7, -9.2);
+      poolDeck.receiveShadow = true;
+      scene.add(poolDeck);
+
+      const poolWater = new THREE.Mesh(new THREE.BoxGeometry(5.6, 0.3, 3.0), poolWaterMat);
+      poolWater.position.set(-2.2, 2.74, -9.2);
+      scene.add(poolWater);
+
+      // White Sun Loungers arranged around the pool deck (1.jpg)
+      for (let l = 0; l < 6; l++) {
+        const lounger = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.18, 0.9), whitePavilionRoofMat);
+        lounger.position.set(-4.4 + l * 0.88, 2.88, -11.0);
+        scene.add(lounger);
+      }
+
+      // Two Thatched-Roof Beachside Cabanas/Gazebos flanking the pool lawn (1.jpg)
+      [[-10.2, 2.7, -7.2], [4.5, 2.7, -7.6]].forEach(([cx, cy, cz]) => {
+        const cabana = new THREE.Group();
+        const base = new THREE.Mesh(new THREE.BoxGeometry(3.4, 1.1, 2.4), creamFacadeMat);
+        base.position.y = 0.55;
+        base.castShadow = true;
+        cabana.add(base);
+
+        const thatch = new THREE.Mesh(new THREE.ConeGeometry(2.6, 1.15, 4), thatchRoofMat);
+        thatch.position.y = 1.65;
+        thatch.rotation.y = Math.PI / 4;
+        thatch.scale.set(1.25, 1, 0.9);
+        thatch.castShadow = true;
+        cabana.add(thatch);
+
+        cabana.position.set(cx, cy, cz);
+        scene.add(cabana);
+      });
+
+      // Distinctive Angled / Butterfly-Winged White-Roofed Main Pavilion Building (Center-Top of 1.jpg)
+      const mainPavilion = new THREE.Group();
+      mainPavilion.position.set(-2.2, 4.4, -16.8);
+
+      // Left Wing of Central White-Roofed Pavilion
+      const leftWingWall = new THREE.Mesh(new THREE.BoxGeometry(5.8, 1.8, 3.6), creamFacadeMat);
+      leftWingWall.position.set(-2.6, 0.9, 0.4);
+      leftWingWall.rotation.y = 0.22;
+      leftWingWall.castShadow = true;
+      mainPavilion.add(leftWingWall);
+
+      const leftWingRoof = new THREE.Mesh(new THREE.BoxGeometry(6.3, 0.35, 4.1), whitePavilionRoofMat);
+      leftWingRoof.position.set(-2.6, 1.95, 0.4);
+      leftWingRoof.rotation.y = 0.22;
+      leftWingRoof.castShadow = true;
+      mainPavilion.add(leftWingRoof);
+
+      // Right Wing of Central White-Roofed Pavilion
+      const rightWingWall = new THREE.Mesh(new THREE.BoxGeometry(5.8, 1.8, 3.6), creamFacadeMat);
+      rightWingWall.position.set(2.6, 0.9, 0.4);
+      rightWingWall.rotation.y = -0.22;
+      rightWingWall.castShadow = true;
+      mainPavilion.add(rightWingWall);
+
+      const rightWingRoof = new THREE.Mesh(new THREE.BoxGeometry(6.3, 0.35, 4.1), whitePavilionRoofMat);
+      rightWingRoof.position.set(2.6, 1.95, 0.4);
+      rightWingRoof.rotation.y = -0.22;
+      rightWingRoof.castShadow = true;
+      mainPavilion.add(rightWingRoof);
+
+      scene.add(mainPavilion);
+
+      // Flanking Two-Story Terracotta-Roofed Resort Wing Buildings (Left & Right of Main Pavilion in 1.jpg)
+      const sideWings = [
+        { x: -19.5, z: -15.2, rot: 0.14 },
+        { x: -12.2, z: -15.8, rot: 0.08 },
+        { x: 7.8, z: -15.8, rot: -0.08 },
+        { x: 15.8, z: -15.0, rot: -0.14 }
+      ];
+
+      sideWings.forEach(w => {
+        const wing = new THREE.Group();
+        const body = new THREE.Mesh(new THREE.BoxGeometry(5.2, 2.1, 2.8), creamFacadeMat);
+        body.position.y = 1.05;
+        body.castShadow = true;
+        body.receiveShadow = true;
+        wing.add(body);
+
+        const roof = new THREE.Mesh(new THREE.ConeGeometry(3.8, 1.15, 4), terracottaRoofMat);
+        roof.position.y = 2.65;
+        roof.rotation.y = Math.PI / 4;
+        roof.scale.set(1.35, 1, 0.78);
+        roof.castShadow = true;
+        wing.add(roof);
+
+        wing.position.set(w.x, 4.4, w.z);
+        wing.rotation.y = w.rot;
+        scene.add(wing);
+      });
+
+      // =========================================================================
+      // 6. LUSH COASTAL SHRUBS & TALL COCONUT PALM TREES (1.jpg)
+      // =========================================================================
+      // Dense coastal shrubs hugging the left & right beach embankments (1.jpg)
+      const shrubClusters = [
+        [-19, 1.5, 1.8, 2.8], [-16.5, 1.6, 1.2, 2.4], [-14.2, 1.7, 0.8, 2.0],
+        [-7.5, 1.8, 0.6, 1.6], [7.2, 1.7, -1.6, 2.2], [11.5, 1.7, -2.2, 2.5], [15.5, 1.6, -2.6, 2.3]
+      ];
+      shrubClusters.forEach(([sx, sy, sz, rad]) => {
+        const shrub = new THREE.Mesh(new THREE.DodecahedronGeometry(rad, 1), shrubGreenMat);
+        shrub.position.set(sx, sy, sz);
+        shrub.scale.set(1.3, 0.65, 1.0);
+        shrub.castShadow = true;
+        scene.add(shrub);
+      });
+
+      // Tall Coconut Palm Trees framing the lawns, pool, and buildings (matching 1.jpg)
+      const palmCoords = [
+        [-21, 2.6, -7.5], [-17, 2.6, -8.2], [-14, 2.6, -9.5], [-11, 2.6, -11.5],
+        [-7.8, 2.6, -8.5], [-7.2, 2.6, -12.2], [2.5, 2.6, -9.5], [3.8, 2.6, -12.0],
+        [8.5, 2.6, -9.2], [11.5, 2.6, -10.5], [15.2, 2.6, -9.8], [18.8, 2.6, -10.8],
+        [-15.5, 4.4, -13.5], [-6.5, 4.4, -14.2], [2.2, 4.4, -14.2], [11.8, 4.4, -13.8]
+      ];
+      const trunkMat = new THREE.MeshStandardMaterial({ color: 0x634732, roughness: 0.9 });
+      const frondMat = new THREE.MeshStandardMaterial({ color: 0x3A6E28, roughness: 0.78 });
+
+      palmCoords.forEach(([px, py, pz]) => {
+        const palm = new THREE.Group();
+        const h = 2.8 + Math.random() * 0.9;
+        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.21, h, 8), trunkMat);
+        trunk.position.y = h / 2;
+        trunk.rotation.z = (Math.random() - 0.5) * 0.18;
+        trunk.castShadow = true;
+        palm.add(trunk);
+
+        for (let f = 0; f < 6; f++) {
+          const frond = new THREE.Mesh(new THREE.ConeGeometry(0.55, 1.75, 5), frondMat);
+          frond.position.y = h;
+          frond.rotation.z = 1.18;
+          frond.rotation.y = (f / 6) * Math.PI * 2;
+          palm.add(frond);
+        }
+        palm.position.set(px, py, pz);
+        scene.add(palm);
+      });
+
+      // Build HTML Hotspot DOM Pins
+      buildHotspotPins();
+
+      // Setup Mouse & Touch Orbit Controls
+      setupOrbitControls(canvas);
+
+      // Responsive Resize Listener
+      window.addEventListener('resize', onWindowResize);
+    }
+
+    function buildHotspotPins() {
+      const layer = document.getElementById('hotspots-layer');
+      layer.innerHTML = '';
+      HOTSPOTS.forEach((hs, idx) => {
+        const btn = document.createElement('button');
+        btn.id = `pin-${idx}`;
+        btn.className = 'hotspot-pin pointer-events-auto flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-arabian-deep/90 border border-brass text-parchment text-[11px] font-semibold shadow-lg cursor-pointer';
+        btn.innerHTML = `
+          <span class="relative flex h-2.5 w-2.5">
+            <span class="pulse-ring absolute inline-flex h-full w-full rounded-full bg-brass opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-brass-light"></span>
+          </span>
+          <span>${hs.title}</span>
+        `;
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          selectHotspot(idx);
+        });
+        layer.appendChild(btn);
+      });
+    }
+
+    function selectHotspot(idx) {
+      currentHotspotIndex = idx;
+      const hs = HOTSPOTS[idx];
+      document.getElementById('hs-tag').textContent = hs.tag;
+      document.getElementById('hs-title').textContent = hs.title;
+      document.getElementById('hs-desc').textContent = hs.desc;
+      setCameraPreset(hs.preset);
+    }
+
+    function askBuddyAboutCurrentHotspot() {
+      const hs = HOTSPOTS[currentHotspotIndex];
+      focusBuddy();
+      sendQuickQuestion(`Tell me more about the ${hs.title} at Fort Aguada.`);
+    }
+
+    function setupOrbitControls(canvas) {
+      let pinchDist = 0;
+
+      canvas.addEventListener('mousedown', (e) => {
+        orbitState.isDragging = true;
+        orbitState.prevX = e.clientX;
+        orbitState.prevY = e.clientY;
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (!orbitState.isDragging) return;
+        const dx = e.clientX - orbitState.prevX;
+        const dy = e.clientY - orbitState.prevY;
+        orbitState.prevX = e.clientX;
+        orbitState.prevY = e.clientY;
+
+        orbitState.goalTheta -= dx * 0.0065;
+        orbitState.goalPhi = Math.max(0.28, Math.min(1.42, orbitState.goalPhi - dy * 0.0065));
+      });
+
+      window.addEventListener('mouseup', () => {
+        orbitState.isDragging = false;
+      });
+
+      canvas.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        orbitState.goalRadius = Math.max(12, Math.min(72, orbitState.goalRadius + e.deltaY * 0.025));
+      }, { passive: false });
+
+      canvas.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) {
+          orbitState.isDragging = true;
+          orbitState.prevX = e.touches[0].clientX;
+          orbitState.prevY = e.touches[0].clientY;
+        } else if (e.touches.length === 2) {
+          orbitState.isDragging = false;
+          const dx = e.touches[0].clientX - e.touches[1].clientX;
+          const dy = e.touches[0].clientY - e.touches[1].clientY;
+          pinchDist = Math.hypot(dx, dy);
+        }
+      }, { passive: true });
+
+      canvas.addEventListener('touchmove', (e) => {
+        if (e.touches.length === 1 && orbitState.isDragging) {
+          const dx = e.touches[0].clientX - orbitState.prevX;
+          const dy = e.touches[0].clientY - orbitState.prevY;
+          orbitState.prevX = e.touches[0].clientX;
+          orbitState.prevY = e.touches[0].clientY;
+
+          orbitState.goalTheta -= dx * 0.0075;
+          orbitState.goalPhi = Math.max(0.28, Math.min(1.42, orbitState.goalPhi - dy * 0.0075));
+        } else if (e.touches.length === 2) {
+          const dx = e.touches[0].clientX - e.touches[1].clientX;
+          const dy = e.touches[0].clientY - e.touches[1].clientY;
+          const newDist = Math.hypot(dx, dy);
+          if (pinchDist > 0) {
+            orbitState.goalRadius = Math.max(12, Math.min(72, orbitState.goalRadius - (newDist - pinchDist) * 0.08));
+          }
+          pinchDist = newDist;
+        }
+      }, { passive: true });
+
+      canvas.addEventListener('touchend', () => {
+        orbitState.isDragging = false;
+        pinchDist = 0;
+      });
+    }
+
+    function onWindowResize() {
+      const container = document.getElementById('fort-canvas-wrapper');
+      if (!container || !camera || !renderer) return;
+      const width = container.clientWidth || window.innerWidth * 0.65 || 800;
+      const height = container.clientHeight || 560;
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      renderer.setSize(width, height);
+    }
+
+    function setCameraPreset(presetName) {
+      document.querySelectorAll('.cam-btn').forEach(btn => {
+        btn.classList.remove('bg-brass', 'text-arabian-deep', 'font-semibold');
+        btn.classList.add('bg-arabian-slate', 'text-parchment');
+      });
+      const activeBtn = document.getElementById(`btn-cam-${presetName}`);
+      if (activeBtn) {
+        activeBtn.classList.remove('bg-arabian-slate', 'text-parchment');
+        activeBtn.classList.add('bg-brass', 'text-arabian-deep', 'font-semibold');
+      }
+
+      if (presetName === 'overview') {
+        orbitState.goalTheta = 0.42;
+        orbitState.goalPhi = 0.96;
+        orbitState.goalRadius = 42;
+        orbitState.goalTarget.set(0, 2.6, 1.5);
+      } else if (presetName === 'bastion') {
+        orbitState.goalTheta = 0.58;
+        orbitState.goalPhi = 1.02;
+        orbitState.goalRadius = 17;
+        orbitState.goalTarget.set(10.5, 2.2, 13.8);
+      } else if (presetName === 'pier') {
+        orbitState.goalTheta = 0.85;
+        orbitState.goalPhi = 0.98;
+        orbitState.goalRadius = 26;
+        orbitState.goalTarget.set(2.5, 2.0, 6.2);
+      } else if (presetName === 'terraces') {
+        orbitState.goalTheta = 0.12;
+        orbitState.goalPhi = 1.05;
+        orbitState.goalRadius = 28;
+        orbitState.goalTarget.set(-2.2, 4.2, -10.5);
+      }
+    }
+
+    function toggleLightingMode() {
+      isGoldenHour = !isGoldenHour;
+      const iconEl = document.getElementById('lighting-icon');
+      const labelEl = document.getElementById('lighting-label');
+
+      if (isGoldenHour) {
+        scene.background.setHex(0xE89B63);
+        scene.fog.color.setHex(0xE89B63);
+        sunLight.color.setHex(0xFF9E58);
+        sunLight.intensity = 1.65;
+        sunLight.position.set(-28, 16, 24);
+        ambientLight.color.setHex(0xFFD2A6);
+        ambientLight.intensity = 0.55;
+        if (iconEl) iconEl.textContent = '🌅';
+        if (labelEl) labelEl.textContent = 'Daylight';
+      } else {
+        scene.background.setHex(0x9BC6DC);
+        scene.fog.color.setHex(0x9BC6DC);
+        sunLight.color.setHex(0xFFF3DC);
+        sunLight.intensity = 1.48;
+        sunLight.position.set(26, 38, 22);
+        ambientLight.color.setHex(0xFFF6E8);
+        ambientLight.intensity = 0.62;
+        if (iconEl) iconEl.textContent = '☀️';
+        if (labelEl) labelEl.textContent = 'Golden Hour';
+      }
+    }
+
+    function toggleBlueprintOverlay() {
+      const pip = document.getElementById('blueprint-pip');
+      pip.classList.toggle('hidden');
+    }
+
+    function updateHotspotScreenPositions() {
+      const container = document.getElementById('fort-canvas-wrapper');
+      if (!container || !camera) return;
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+
+      HOTSPOTS.forEach((hs, idx) => {
+        const pin = document.getElementById(`pin-${idx}`);
+        if (!pin) return;
+        const proj = hs.pos.clone().project(camera);
+        if (proj.z > 1) {
+          pin.style.opacity = '0';
+          pin.style.pointerEvents = 'none';
+        } else {
+          const x = (proj.x * 0.5 + 0.5) * width;
+          const y = (-proj.y * 0.5 + 0.5) * height;
+          pin.style.left = `${x}px`;
+          pin.style.top = `${y}px`;
+          pin.style.opacity = '1';
+          pin.style.pointerEvents = 'auto';
+        }
+      });
+    }
+
+    const clock = new THREE.Clock();
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const t = clock.getElapsedTime();
+
+      // Smoothly interpolate camera orbit state
+      orbitState.theta += (orbitState.goalTheta - orbitState.theta) * 0.08;
+      orbitState.phi += (orbitState.goalPhi - orbitState.phi) * 0.08;
+      orbitState.radius += (orbitState.goalRadius - orbitState.radius) * 0.08;
+      orbitState.target.lerp(orbitState.goalTarget, 0.08);
+
+      camera.position.x = orbitState.target.x + orbitState.radius * Math.sin(orbitState.phi) * Math.sin(orbitState.theta);
+      camera.position.y = orbitState.target.y + orbitState.radius * Math.cos(orbitState.phi);
+      camera.position.z = orbitState.target.z + orbitState.radius * Math.sin(orbitState.phi) * Math.cos(orbitState.theta);
+      camera.lookAt(orbitState.target);
+
+      // Animate Arabian Sea rolling waves
+      if (waterMesh) {
+        const pos = waterMesh.geometry.attributes.position;
+        const baseY = waterMesh.userData.baseY;
+        for (let i = 0; i < pos.count; i++) {
+          const vx = pos.getX(i);
+          const vz = pos.getZ(i);
+          const wave = Math.sin(vx * 0.22 + t * 1.8) * 0.14 + Math.cos(vz * 0.26 + t * 1.4) * 0.12;
+          pos.setY(i, baseY[i] + wave);
+        }
+        pos.needsUpdate = true;
+      }
+
+      updateHotspotScreenPositions();
+      renderer.render(scene, camera);
+    }
+
+    // =========================================================================
+    // 2. BEFORE / AFTER EVOLUTION SLIDER LOGIC
+    // =========================================================================
+    function initComparisonSlider() {
+      const box = document.getElementById('compare-box');
+      const clip = document.getElementById('compare-clip');
+      const handle = document.getElementById('compare-slider-handle');
+      const leftImg = document.getElementById('compare-left-img');
+      if (!box || !clip || !handle || !leftImg) return;
+
+      const syncLeftWidth = () => {
+        leftImg.style.width = `${box.clientWidth}px`;
+      };
+      syncLeftWidth();
+      window.addEventListener('resize', syncLeftWidth);
+
+      let dragging = false;
+      const moveSlider = (clientX) => {
+        const rect = box.getBoundingClientRect();
+        let pct = ((clientX - rect.left) / rect.width) * 100;
+        pct = Math.max(4, Math.min(96, pct));
+        clip.style.width = `${pct}%`;
+        handle.style.left = `${pct}%`;
+      };
+
+      handle.addEventListener('mousedown', () => { dragging = true; });
+      box.addEventListener('mousedown', (e) => { dragging = true; moveSlider(e.clientX); });
+      window.addEventListener('mousemove', (e) => { if (dragging) moveSlider(e.clientX); });
+      window.addEventListener('mouseup', () => { dragging = false; });
+
+      box.addEventListener('touchstart', (e) => {
+        dragging = true;
+        if (e.touches[0]) moveSlider(e.touches[0].clientX);
+      }, { passive: true });
+      box.addEventListener('touchmove', (e) => {
+        if (dragging && e.touches[0]) moveSlider(e.touches[0].clientX);
+      }, { passive: true });
+      window.addEventListener('touchend', () => { dragging = false; });
+    }
+
+    // =========================================================================
+    // 3. AI TALKING BUDDY ("CAPITÃO VASCO") — SPEECH + GEMINI API
+    // =========================================================================
+    const VASCO_SYSTEM_PROMPT = `You are Capitão Vasco, an engaging, warm, historically authoritative 17th-century Goan maritime cartographer and guardian of Fort Aguada (built 1609–1612 in Sinquerim, Goa). Answer visitor questions concisely (2 to 4 crisp sentences) with vivid historical accuracy covering Fort Aguada's construction from iron-rich laterite stone, its 2.38-million-gallon spring-fed freshwater cistern, its 1864 four-storey lighthouse, the Lower Fort / Aguada Central Jail where Goan freedom fighters were held, local legends of subterranean tunnels, and its strategic defense of the Mandovi River mouth against Dutch fleets.`;
+
+    const chatHistory = [];
+    let voiceEnabled = true;
+    let recognition = null;
+    let isListening = false;
+    let mouthTimer = null;
+
+    function focusBuddy() {
+      const panel = document.getElementById('buddy-panel');
+      const input = document.getElementById('chat-input');
+      if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (input) setTimeout(() => input.focus(), 350);
+    }
+
+    function toggleVoiceOutput() {
+      voiceEnabled = !voiceEnabled;
+      document.getElementById('tts-icon').textContent = voiceEnabled ? '🔊' : '🔇';
+      document.getElementById('tts-label').textContent = voiceEnabled ? 'Voice On' : 'Muted';
+      if (!voiceEnabled && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        stopSpeakingAnimation();
+      }
+    }
+
+    function startSpeakingAnimation() {
+      document.getElementById('voice-waveform')?.classList.add('speaking-active');
+      document.getElementById('buddy-state-text').textContent = 'Capitão Vasco is speaking...';
+      const mouth = document.getElementById('buddy-mouth');
+      if (mouth && !mouthTimer) {
+        mouthTimer = setInterval(() => {
+          const ry = (1.2 + Math.random() * 2.6).toFixed(1);
+          mouth.setAttribute('ry', ry);
+        }, 120);
+      }
+    }
+
+    function stopSpeakingAnimation() {
+      document.getElementById('voice-waveform')?.classList.remove('speaking-active');
+      document.getElementById('buddy-state-text').textContent = 'Ask me anything or tap the mic!';
+      if (mouthTimer) {
+        clearInterval(mouthTimer);
+        mouthTimer = null;
+      }
+      const mouth = document.getElementById('buddy-mouth');
+      if (mouth) mouth.setAttribute('ry', '1.2');
+    }
+
+    function speakAloud(text) {
+      if (!voiceEnabled || !('speechSynthesis' in window)) {
+        stopSpeakingAnimation();
+        return;
+      }
+      window.speechSynthesis.cancel();
+      const cleanText = text.replace(/\*\*/g, '').replace(/\*/g, '');
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      utterance.rate = 0.98;
+      utterance.pitch = 0.92;
+      utterance.onstart = startSpeakingAnimation;
+      utterance.onend = stopSpeakingAnimation;
+      utterance.onerror = stopSpeakingAnimation;
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function initSpeechRecognition() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) return;
+      recognition = new SpeechRecognition();
+      recognition.lang = 'en-IN';
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      recognition.onstart = () => {
+        isListening = true;
+        document.getElementById('mic-status-bar')?.classList.remove('hidden');
+        document.getElementById('btn-mic')?.classList.add('bg-laterite', 'text-white');
+      };
+
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        if (transcript) {
+          processUserMessage(transcript);
+        }
+      };
+
+      recognition.onerror = () => {
+        isListening = false;
+        document.getElementById('mic-status-bar')?.classList.add('hidden');
+        document.getElementById('btn-mic')?.classList.remove('bg-laterite', 'text-white');
+      };
+
+      recognition.onend = () => {
+        isListening = false;
+        document.getElementById('mic-status-bar')?.classList.add('hidden');
+        document.getElementById('btn-mic')?.classList.remove('bg-laterite', 'text-white');
+      };
+    }
+
+    function toggleMicrophone() {
+      if (!recognition) {
+        appendMessage('bot', 'Voice input is not supported in this browser—please type your question below and I will gladly answer!');
+        return;
+      }
+      if (isListening) {
+        recognition.stop();
+      } else {
+        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+        stopSpeakingAnimation();
+        try {
+          recognition.start();
+        } catch (err) {
+          console.warn(err);
+        }
+      }
+    }
+
+    function formatMarkdownSimple(str) {
+      return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>');
+    }
+
+    function appendMessage(sender, text) {
+      const container = document.getElementById('chat-messages');
+      if (!container) return;
+      const wrapper = document.createElement('div');
+      if (sender === 'user') {
+        wrapper.className = 'flex items-start justify-end gap-2.5';
+        wrapper.innerHTML = `
+          <div class="bg-arabian text-parchment rounded-2xl rounded-tr-sm px-3.5 py-2.5 text-xs sm:text-sm max-w-[85%] shadow-sm leading-relaxed">
+            ${formatMarkdownSimple(text)}
+          </div>
+        `;
+      } else {
+        wrapper.className = 'flex items-start gap-2.5';
+        wrapper.innerHTML = `
+          <div class="w-7 h-7 rounded-lg bg-laterite text-white font-display font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">CV</div>
+          <div class="bg-white border border-parchment-border rounded-2xl rounded-tl-sm px-3.5 py-2.5 text-xs sm:text-sm text-arabian shadow-sm leading-relaxed">
+            ${formatMarkdownSimple(text)}
+          </div>
+        `;
+      }
+      container.appendChild(wrapper);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function sendQuickQuestion(question) {
+      processUserMessage(question);
+    }
+
+    function handleChatSubmit(event) {
+      event.preventDefault();
+      const input = document.getElementById('chat-input');
+      const text = input.value.trim();
+      if (!text) return;
+      input.value = '';
+      processUserMessage(text);
+    }
+
+    // Smart Historical Fallback Knowledge Base (if offline or API throttled)
+    function getOfflineHistoricalReply(query) {
+      const q = query.toLowerCase();
+      if (q.includes('water') || q.includes('cistern') || q.includes('name') || q.includes('aguada')) {
+        setCameraPreset('terraces');
+        return 'Bem-vindo! "Aguada" comes from the Portuguese word for "watering place." Three natural freshwater springs inside our headland fed a massive five-chamber vaulted cistern holding **2,376,000 gallons** of sweet water—replenishing returning Portuguese spice armadas before their long voyage to Lisbon!';
+      }
+      if (q.includes('lighthouse') || q.includes('1864') || q.includes('jail') || q.includes('prison')) {
+        setCameraPreset('terraces');
+        return 'Atop our Upper Citadel stands the **1864 four-storey lighthouse**, one of Asia’s oldest—its rotating oil lamp once flashed every seven minutes to guide ships past the Mandovi sandbars. Down in the Lower Fort barracks, the **Aguada Central Jail** held heroic Goan freedom fighters like Dr. Ram Manohar Lohia and T.B. Cunha until 2015.';
+      }
+      if (q.includes('tunnel') || q.includes('secret') || q.includes('legend') || q.includes('story')) {
+        setCameraPreset('bastion');
+        return 'Ah, you ask of our secret vaults! Goan oral lore tells of subterranean escape tunnels carved through the red laterite bedrock—linking the Upper Citadel down to the Circular Sea Bastion and even across the Mandovi estuary toward Reis Magos Fort. Remarkably, in over 350 years, Fort Aguada was never captured in battle!';
+      }
+      setCameraPreset('overview');
+      return 'Commissioned in **1609** by Viceroy Rui Lourenço de Távora and completed in **1612**, Fort Aguada was built from local iron-rich laterite stone that hardens in the monsoon air. Armed with **79 cannons**, its Upper Citadel and projecting Sinquerim Sea Bastion guarded the gateway to Old Goa.';
+    }
+
+    async function processUserMessage(userText) {
+      appendMessage('user', userText);
+      document.getElementById('buddy-state-text').textContent = 'Consulting maritime archives...';
+
+      // Auto-focus 3D camera on matching features in 1.jpg
+      const lower = userText.toLowerCase();
+      if (lower.includes('bastion') || lower.includes('round') || lower.includes('tower')) setCameraPreset('bastion');
+      else if (lower.includes('pier') || lower.includes('beach') || lower.includes('cove') || lower.includes('causeway')) setCameraPreset('pier');
+      else if (lower.includes('terrace') || lower.includes('pavilion') || lower.includes('wall') || lower.includes('resort')) setCameraPreset('terraces');
+
+      chatHistory.push({ role: 'user', parts: [{ text: userText }] });
+
+      const apiKey = "";
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+
+      const payload = {
+        contents: chatHistory.slice(-8),
+        systemInstruction: {
+          parts: [{ text: VASCO_SYSTEM_PROMPT }]
+        }
+      };
+
+      let replyText = null;
+      const delays = [1000, 2000, 4000];
+
+      for (let attempt = 0; attempt <= delays.length; attempt++) {
+        try {
+          const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/wh' },
+            body: JSON.stringify(payload)
+          });
+
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const result = await response.json();
+          const candidateText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (candidateText) {
+            replyText = candidateText.trim();
+            break;
+          }
+        } catch (err) {
+          if (attempt < delays.length) {
+            await new Promise(res => setTimeout(res, delays[attempt]));
+          }
+        }
+      }
+
+      if (!replyText) {
+        replyText = getOfflineHistoricalReply(userText);
+      }
+
+      chatHistory.push({ role: 'model', parts: [{ text: replyText }] });
+      appendMessage('bot', replyText);
+      speakAloud(replyText);
+    }
+
+    // =========================================================================
+    // 4. INITIALIZE ON WINDOW LOAD
+    // =========================================================================
+    window.onload = function () {
+      initThreeJS();
+      onWindowResize();
+      animate();
+      initComparisonSlider();
+      initSpeechRecognition();
+    };
+  </script>
+</body>
+</html>
